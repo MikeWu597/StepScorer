@@ -113,23 +113,29 @@ class ScoringPredictor:
 if __name__ == "__main__":
     predictor = ScoringPredictor()
     
-    # 示例1
-    result1 = predictor.predict(
-        standard="代码需通过所有单元测试",
-        obj="def add(a, b):\n    return a + b\n# 测试: test_add(1,2)==3 通过",
-        return_steps=True
-    )
-    print("示例1结果:", json.dumps(result1, indent=2))
+    # 获取用户输入
+    print("请输入评分标准和待评分对象:")
+    standard = input("评分标准 (standard): ")
+    obj = input("待评分对象 (obj): ")
     
-    # 示例2 (带可视化步骤)
-    result2 = predictor.predict(
-        standard="诗歌应押韵且有情感深度",
-        obj="春眠不觉晓，处处闻啼鸟。夜来风雨声，花落知多少。",
-        return_steps=True
-    )
-    
-    # 保存步骤数据用于可视化
-    with open('poem_scoring_steps.json', 'w') as f:
-        json.dump(result2, f, indent=2)
-    
-    print("\n示例2步骤已保存到 poem_scoring_steps.json")
+    # 进行预测
+    try:
+        result = predictor.predict(
+            standard=standard,
+            obj=obj,
+            return_steps=True
+        )
+        
+        # 输出最终分数
+        print(f"\n最终评分: {result['final_score']:.4f}")
+        
+        # 保存步骤数据用于可视化
+        output_filename = 'scoring_steps.json'
+        with open(output_filename, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2, ensure_ascii=False)
+        
+        print(f"详细步骤已保存到 {output_filename}")
+        
+    except Exception as e:
+        print(f"推理过程中发生错误: {e}", file=sys.stderr)
+        sys.exit(1)
