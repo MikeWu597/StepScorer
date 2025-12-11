@@ -1,21 +1,36 @@
-# StepScorer
+# 📊 StepScorer
 
 [English](README.md) | [中文](README_zh.md)
 
-StepScorer is a machine learning project designed for scoring steps in sequential data. The model can be applied to various specific tasks such as evaluating grammar correctness, detecting discriminatory content, and other text evaluation tasks depending on the training data provided. Its usage is flexible and supports a wide range of sequential scoring applications. This repository provides tools for training models, performing inference, and visualizing results.
+StepScorer is a machine learning project designed for text scoring. The model can be applied to various specific tasks—such as evaluating grammatical correctness, detecting discriminatory content, and other text assessment tasks—depending on the training data provided. Its usage is highly flexible and supports a wide range of scoring applications. This repository provides tools for training the model, performing inference, and visualizing results.
 
-## Table of Contents
+Unlike traditional approaches that produce a single holistic evaluation, StepScorer adopts a decomposed strategy, generating interpretable step-by-step assessments while preserving the contextual relationship across the entire sequence. During each inference step, the model outputs delta values representing the contribution of the current step to the total score. As the sequence progresses, these delta values gradually decrease and approach zero, indicating that the model is becoming increasingly confident about the final score. The core innovation of this approach lies in its incremental scoring mechanism: the delta values diminish over time steps and converge toward zero, with their cumulative sum approaching a limit—the model’s predicted final score. This mathematical principle underpins both the training and inference processes.
+
+The model is lightweight. During development, a dataset containing approximately 1,500 discriminatory statements was used for training and inference on an Nvidia GeForce RTX 5060 Ti GPU. Training took about 40 seconds, and a single inference operation required roughly 1 second.
+
+## 🔍 Example
+
+Target for detection: **The sentence contains race-color related discriminatory content.**
+
+| Input                                               | Output |
+|----------------------------------------------------|--------|
+| PolyU is an outstanding university.                | 0.401  |
+| White Americans aren't smart enough to be scientists. | 4.912  |
+
+When the output value exceeds a certain threshold, the input is considered to contain racially discriminatory content.
+
+## 📁 Table of Contents
 - [Dataset Preparation](#dataset-preparation)
 - [Training](#training)
 - [Inference](#inference)
 - [Debugging](#debugging)
-- [Model Structure](#model-structure)
+- [Model Architecture](#model-architecture)
 
-## Dataset Preparation
+## 🗃️ Dataset Preparation
 
-Before training or running inference, you need to prepare your dataset in the appropriate format:
+Before training or running inference, you need to format your dataset appropriately:
 
-The project expects CSV data with three columns: standard, object, and score.
+The project expects a CSV file with three columns: `standard`, `object`, and `score`.
 
 Example data structure:
 
@@ -24,32 +39,42 @@ data/
 └── sample_data.csv
 ```
 
+The repository includes two ready-to-use training datasets for detecting discriminatory content, adapted from [CrowS-Pairs: A Challenge Dataset for Measuring Social Biases in Masked Language Models](https://aclanthology.org/2020.emnlp-main.154/) (Nangia et al., EMNLP 2020). Users may choose either as needed.
+
 Each row in the CSV should contain:
-- standard: The evaluation criteria
-- object: The item being evaluated
-- score: The ground truth score (0-5 scale)
+- `standard`: the evaluation criterion
+- `object`: the item being evaluated
+- `score`: the ground-truth score (on a 0–5 scale, or another consistent scale)
 
 Example row:
 ```markdown
 standard,object,score
-"诗歌应押韵且有情感深度","秋叶飘零水自流，孤舟独坐忆故友。十年生死两茫茫，不思量，自难忘。",4.9
+"Poetry should rhyme and convey emotional depth.","Autumn leaves drift; water flows alone. On a solitary boat, I recall old friends. Ten years—life and death—vast and茫. Not thought of, yet unforgettable.",4.9
 ```
 
-## Training
+## 🔧 Dependency Setup
 
-To train the StepScorer model, modify the CONFIG dictionary in [train.py](train.py) directly:
+All required packages are listed in [requirements.txt](requirements.txt). Install them using:
 
-Key training configuration options in CONFIG:
-- `data_path`: Path to your training data (default: 'data/sample_data.csv')
-- `model_save_path`: File path where trained model will be saved (default: 'scoring_model.pt')
-- `epochs`: Number of training epochs (default: 20)
-- `batch_size`: Batch size for training (default: 24)
-- `lr`: Learning rate for optimizer (default: 0.002)
+```bash
+pip install -r requirements.txt
+```
+
+## 🏋️ Training
+
+To train the StepScorer model, directly modify the `CONFIG` dictionary in [train.py](train.py):
+
+Key training configuration options in `CONFIG`:
+- `data_path`: path to the training data (default: `'data/sample_data.csv'`)
+- `model_save_path`: file path to save the trained model (default: `'scoring_model.pt'`)
+- `epochs`: number of training epochs (default: `20`)
+- `batch_size`: training batch size (default: `24`)
+- `lr`: learning rate for the optimizer (default: `0.002`)
 
 During training, the model will:
 1. Load and preprocess the training data
-2. Initialize the model parameters
-3. Run the training loop for the specified number of epochs
+2. Initialize model parameters
+3. Run the specified number of training loops
 4. Save the best model based on validation loss
 
 Simply run:
@@ -57,12 +82,12 @@ Simply run:
 python train.py
 ```
 
-## Inference
+## 🔮 Inference
 
 After training, you can use the [inference.py](inference.py) script to score new sequences.
 
-Before running inference, update the CONFIG dictionary in [inference.py](inference.py):
-- `model_path`: Path to the trained model checkpoint (default: 'scoring_model.pt')
+Before running inference, update the `CONFIG` dictionary in [inference.py](inference.py):
+- `model_path`: path to the trained model checkpoint (default: `'scoring_model.pt'`)
 
 Then run:
 ```bash
@@ -71,63 +96,57 @@ python inference.py
 
 The inference script will:
 1. Load the trained model
-2. Prompt for standard and object inputs
-3. Generate step scores for the sequence
-4. Save the results in a structured format to 'scoring_steps.json'
+2. Prompt for input of a standard and an object
+3. Generate stepwise scores for the sequence
+4. Save the results in a structured format to `'scoring_steps.json'`
 
-## Debugging
+## 🐞 Debugging
 
-For debugging and visualization purposes, use the [figure.py](figure.py) script to convert model outputs into images:
+For debugging and visualization purposes, use the [figure.py](figure.py) script to convert model outputs into plots:
 
-First, make sure you have a scoring result file (generated by inference.py):
-- By default, this will be 'scoring_steps.json'
+First, ensure you have a scoring result file (generated by `inference.py`):
+- By default, this will be `'scoring_steps.json'`
 
 Then run:
 ```bash
 python figure.py
 ```
 
-This script helps with:
-- Visualizing prediction results
-- Showing cumulative score evolution over steps
-- Displaying delta values per step
-- Generating plots for analysis and presentation
+This script helps:
+- Visualize prediction results
+- Display the cumulative score evolution over steps
+- Show delta values at each step
+- Generate charts for analysis and presentation
 
-The visualization will be saved as 'scoring_evolution.png'.
+Visualization results will be saved as `'scoring_evolution.png'`.
 
-## Model Structure
+## 🧩 Model Architecture
 
 The model architecture is defined in [model.py](model.py). Key components include:
 
 ### Core Architecture
-- **BERT Encoder**: Processes input text using pre-trained BERT model (frozen)
+- **BERT Encoder**: Uses a pretrained BERT model to process input text (frozen)
 - **GRU Module**: Models the sequential scoring process
 - **Delta Predictor**: Predicts incremental score changes at each step
 - **Accumulator**: Computes cumulative scores from deltas
 
 ### Key Features
-- Uses BERT for semantic understanding of standards and objects
-- Employs GRU to model the step-by-step scoring process
-- Predicts score deltas rather than absolute scores at each step
-- Applies masking to handle variable-length sequences properly
-- Initializes GRU state with global context from the standard
+- Uses BERT for semantic understanding of both standard and object
+- Employs a GRU to model the step-by-step scoring process
+- Predicts score deltas at each step rather than absolute scores
 
 ### Model Parameters
-Main hyperparameters that can be adjusted in the respective CONFIG dictionaries:
-- Hidden layer dimensions (default: 128)
-- Maximum steps (default: 100)
-- Learning rate (default: 0.002)
-- Batch size (default: 24)
+Main hyperparameters adjustable via the respective `CONFIG` dictionaries:
+- Hidden dimension size (default: `128`)
+- Maximum number of steps (default: `100`)
+- Learning rate (default: `0.002`)
+- Batch size (default: `24`)
 
-Refer to [model.py](model.py) for detailed implementation.
+For implementation details, please refer to [model.py](model.py).
 
-## Requirements
+## 🤝 Legal Notice
 
-All required packages are listed in [requirements.txt](file://e:\Dev\StepScorer\requirements.txt). Install them using:
-```bash
-pip install -r requirements.txt
-```
-
-## Contributing
-
-Feel free to submit issues and pull requests to improve this project.
+- The source code, documentation, and related technical materials (collectively referred to as “the Technology”) made publicly available in this project are provided solely for technical demonstration and academic exchange purposes. They do not constitute a waiver, transfer, or license of any intellectual property rights related to the Technology.
+- The developer/applicant reserves all rights to file for patents, trademarks, copyrights, or other intellectual property protections for the Technology in the People’s Republic of China and other jurisdictions.
+- No individual or organization may claim that the Technology has entered the public domain based on this disclosure, nor may they use the Technology for commercial purposes, patent design-around, or any activity that impedes the patentability of the Technology without prior written authorization.
+- This disclosure does not grant any express or implied license to any third party. All rights are reserved.
