@@ -11,9 +11,9 @@ from dataset import ScoringDataset, collate_fn
 
 # 配置参数
 CONFIG = {
-    'batch_size': 16,
+    'batch_size': 24,
     'epochs': 20,
-    'lr': 0.001,
+    'lr': 0.002,
     'hidden_size': 128,
     'max_steps': 100,
     'lambda_reg': 0.05,  # 时间加权正则化系数
@@ -21,6 +21,22 @@ CONFIG = {
     'data_path': 'data/sample_data.csv',
     'model_save_path': 'scoring_model.pt'
 }
+
+def generate_smooth_deltas(batch_size, max_steps, device):
+    """
+    Generate smoothly decreasing delta values that gradually approach zero
+    instead of becoming exactly zero after a certain point.
+    """
+    # Create an exponential decay curve
+    steps = torch.arange(max_steps, device=device, dtype=torch.float)
+    # Exponential decay with a small epsilon to ensure gradual approach to zero
+    decay_factor = torch.exp(-steps / (max_steps * 0.8))  # 0.8 for gentler decay
+    # Add small random noise for realism
+    noise = torch.randn(batch_size, max_steps, device=device) * 0.01
+    deltas = decay_factor.unsqueeze(0).expand(batch_size, -1) + noise
+    # Ensure all values are positive and gradually approach zero
+    deltas = torch.relu(deltas) * 0.1  # Scale down the magnitude
+    return deltas
 
 def train():
     # 1. 准备数据
@@ -86,8 +102,9 @@ def train():
             
             # 时间加权正则化: 鼓励早期修正
             deltas = outputs['deltas']  # [batch, 100]
-            time_weights = torch.arange(1, CONFIG['max_steps'] + 1, device=CONFIG['device']).float()
-            reg_loss = (time_weights * deltas.abs()).mean()
+            # 使用平滑递减的delta目标而不是线性权重
+            target_deltas = generate_smooth_deltas(deltas.shape[0], deltas.shape[1], CONFIG['device'])
+            reg_loss = ((deltas - target_deltas) ** 2).mean()
             total_loss = loss + CONFIG['lambda_reg'] * reg_loss
             
             # 反向传播

@@ -3,6 +3,7 @@ import numpy as np
 from transformers import BertTokenizer
 from model import ScoringModel
 import json
+import sys
 
 CONFIG = {
     'hidden_size': 128,
