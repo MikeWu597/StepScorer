@@ -7,6 +7,9 @@ from flask_cors import CORS
 from werkzeug.utils import secure_filename
 import threading
 import queue
+import time
+import json
+from datetime import datetime
 
 app = Flask(__name__)
 CORS(app)  # 允许跨域请求
@@ -17,11 +20,19 @@ if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
+# 创建figures文件夹用于存放生成的图表
+FIGURES_FOLDER = 'figures'
+if not os.path.exists(FIGURES_FOLDER):
+    os.makedirs(FIGURES_FOLDER)
+app.config['FIGURES_FOLDER'] = FIGURES_FOLDER
+
 # 设置允许的文件类型
 ALLOWED_EXTENSIONS = {'csv'}
 
 # Store training processes
 training_processes = {}
+# Store inference processes
+inference_processes = {}
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -44,6 +55,28 @@ def list_datasets():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/models', methods=['GET'])
+def list_models():
+    """获取模型检查点文件列表"""
+    try:
+        models = []
+        # 从 checkpoints 目录查找模型文件
+        checkpoints_dir = 'checkpoints'
+        if os.path.exists(checkpoints_dir):
+            for filename in os.listdir(checkpoints_dir):
+                if filename.endswith('.pt'):
+                    filepath = os.path.join(checkpoints_dir, filename)
+                    if os.path.isfile(filepath):
+                        file_stats = os.stat(filepath)
+                        models.append({
+                            'name': filename,
+                            'size': file_stats.st_size,
+                            'modified': file_stats.st_mtime
+                        })
+        return jsonify(models), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/start-training', methods=['POST'])
 def start_training():
     """启动模型训练"""
@@ -61,7 +94,6 @@ def start_training():
         
         # Generate a unique ID for this training process
         import uuid
-        import time
         training_id = str(uuid.uuid4())
         timestamp = int(time.time())
         
@@ -113,6 +145,146 @@ def start_training():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/start-inference', methods=['POST'])
+def start_inference():
+    """启动推理过程"""
+    try:
+        data = request.get_json()
+        model_name = data.get('model')
+        standard = data.get('standard')
+        obj = data.get('obj')
+        
+        if not model_name or not standard or not obj:
+            return jsonify({'error': 'Missing model, standard or object'}), 400
+            
+        # Check if model exists in checkpoints directory
+        model_path = os.path.join('checkpoints', model_name)
+        if not os.path.exists(model_path):
+            return jsonify({'error': 'Model not found'}), 404
+        
+        # Generate a unique ID for this inference process
+        import uuid
+        inference_id = str(uuid.uuid4())
+        timestamp = int(time.time())
+        
+        # Start inference in a separate thread
+        def run_inference():
+            try:
+                # Set environment variables for inference
+                env = os.environ.copy()
+                env['MODEL_PATH'] = model_path
+                env['STANDARD'] = standard
+                env['OBJECT'] = obj
+                env['INFERENCE_ID'] = inference_id
+                
+                # Run inference.py as a subprocess
+                process = subprocess.Popen([
+                    sys.executable, '-u', 'inference.py'
+                ], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, 
+                   bufsize=1, universal_newlines=True, env=env)
+                
+                inference_processes[inference_id] = {
+                    'process': process,
+                    'output': [],
+                    'status': 'running',
+                    'start_time': timestamp
+                }
+                
+                # Capture output
+                for line in iter(process.stdout.readline, ''):
+                    if inference_id in inference_processes:
+                        inference_processes[inference_id]['output'].append(line)
+                
+                process.wait()
+                if inference_id in inference_processes:
+                    inference_processes[inference_id]['status'] = 'completed' if process.returncode == 0 else 'failed'
+                    
+                    # If successful, generate figure
+                    if process.returncode == 0:
+                        try:
+                            generate_figure_with_timestamp(inference_id)
+                        except Exception as fig_error:
+                            inference_processes[inference_id]['output'].append(f"Figure generation error: {str(fig_error)}")
+                            inference_processes[inference_id]['status'] = 'completed_with_errors'
+                            
+            except Exception as e:
+                if inference_id in inference_processes:
+                    inference_processes[inference_id]['status'] = 'failed'
+                    inference_processes[inference_id]['output'].append(f"Error: {str(e)}")
+        
+        thread = threading.Thread(target=run_inference)
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'inference_id': inference_id,
+            'message': 'Inference started',
+            'start_time': timestamp
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+def generate_figure_with_timestamp(inference_id):
+    """根据推理结果生成带时间戳的图表"""
+    # Read scoring_steps.json
+    with open('scoring_steps.json', 'r') as f:
+        data = json.load(f)
+    
+    # Create timestamp for the figure
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    figure_filename = f"scoring_evolution_{timestamp}.png"
+    figure_path = os.path.join(app.config['FIGURES_FOLDER'], figure_filename)
+    
+    # Generate the figure using the code from figure.py
+    import matplotlib.pyplot as plt
+    
+    steps = [step['step'] for step in data['steps']]
+    scores = [step['cumulative_score'] for step in data['steps']]
+    deltas = [step['delta'] for step in data['steps']]
+
+    plt.figure(figsize=(12, 5))
+    plt.subplot(1, 2, 1)
+    plt.plot(steps, scores, 'b-', linewidth=2)
+    plt.title('Cumulative Score Evolution')
+    plt.xlabel('Step')
+    plt.ylabel('Score')
+    plt.grid(True)
+
+    plt.subplot(1, 2, 2)
+    plt.plot(steps, deltas, 'r-', linewidth=2)
+    plt.title('Delta per Step')
+    plt.xlabel('Step')
+    plt.ylabel('Delta')
+    plt.grid(True)
+
+    plt.tight_layout()
+    plt.savefig(figure_path)
+    plt.close()
+    
+    # Save figure info in inference process
+    if inference_id in inference_processes:
+        inference_processes[inference_id]['figure'] = figure_filename
+
+@app.route('/api/inference-status/<inference_id>', methods=['GET'])
+def inference_status(inference_id):
+    """获取推理状态和输出"""
+    if inference_id not in inference_processes:
+        return jsonify({'error': 'Inference process not found'}), 404
+    
+    process_info = inference_processes[inference_id]
+    response_data = {
+        'status': process_info['status'],
+        'output': process_info['output'],
+        'start_time': process_info.get('start_time')
+    }
+    
+    # Include figure info if available
+    if 'figure' in process_info:
+        response_data['figure'] = process_info['figure']
+    
+    return jsonify(response_data), 200
+
 @app.route('/api/training-status/<training_id>', methods=['GET'])
 def training_status(training_id):
     """获取训练状态和输出"""
@@ -125,6 +297,11 @@ def training_status(training_id):
         'output': process_info['output'],
         'start_time': process_info.get('start_time')
     }), 200
+
+@app.route('/figures/<path:filename>')
+def serve_figure(filename):
+    """提供图表文件服务"""
+    return send_from_directory(app.config['FIGURES_FOLDER'], filename)
 
 # 加载配置
 config_path = 'web_config.yml'

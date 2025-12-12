@@ -21,8 +21,11 @@ CONFIG = {
     'lambda_reg': 0.05,  # 时间加权正则化系数
     'device': 'cuda' if torch.cuda.is_available() else 'cpu',
     'data_path': 'data/sample_data.csv',
-    'model_save_path': 'scoring_model.pt'
+    'model_save_path': 'checkpoints/scoring_model.pt'  # 修改为 checkpoints 目录
 }
+
+# 创建 checkpoints 目录（如果不存在）
+os.makedirs('checkpoints', exist_ok=True)
 
 # 如果环境变量中有指定的数据集，则使用该数据集
 if 'TRAINING_DATASET' in os.environ:
@@ -146,21 +149,23 @@ def train():
         # 学习率调整
         scheduler.step(val_loss)
         
-        # 保存最佳模型，带时间戳以避免覆盖
+        # 更新最佳验证损失
         if val_loss < best_val_loss:
             best_val_loss = val_loss
-            # 创建带时间戳的模型文件名
-            timestamp = int(time.time())
-            base_path, ext = os.path.splitext(CONFIG['model_save_path'])
-            timestamped_model_path = f"{base_path}_{timestamp}{ext}"
-            
-            # 保存模型
-            torch.save(model.state_dict(), timestamped_model_path)
-            print(f"Saved best model with val loss: {val_loss:.4f} to {timestamped_model_path}")
-            
-            # 同时保存一个最新的模型副本
-            torch.save(model.state_dict(), CONFIG['model_save_path'])
-            print(f"Updated latest model copy to {CONFIG['model_save_path']}")
+    
+    # 训练结束后只保存最后一个模型
+    # 创建带时间戳的模型文件名
+    timestamp = int(time.time())
+    base_path, ext = os.path.splitext(CONFIG['model_save_path'])
+    timestamped_model_path = f"{base_path}_{timestamp}{ext}"
+    
+    # 保存模型
+    torch.save(model.state_dict(), timestamped_model_path)
+    print(f"Saved final model with val loss: {best_val_loss:.4f} to {timestamped_model_path}")
+    
+    # 同时保存一个最新的模型副本
+    torch.save(model.state_dict(), CONFIG['model_save_path'])
+    print(f"Updated latest model copy to {CONFIG['model_save_path']}")
 
 if __name__ == "__main__":
     train()

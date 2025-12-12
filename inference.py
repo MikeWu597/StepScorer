@@ -4,12 +4,13 @@ from transformers import BertTokenizer
 from model import ScoringModel
 import json
 import sys
+import os
 
 CONFIG = {
     'hidden_size': 128,
     'max_steps': 100,
     'device': 'cuda' if torch.cuda.is_available() else 'cpu',
-    'model_path': 'scoring_model.pt',
+    'model_path': os.environ.get('MODEL_PATH', 'checkpoints/scoring_model.pt'),  # 修改为 checkpoints 目录
     'bert_model': 'bert-base-uncased'
 }
 
@@ -112,12 +113,19 @@ class ScoringPredictor:
 
 # 使用示例
 if __name__ == "__main__":
-    predictor = ScoringPredictor()
+    # 获取环境变量或用户输入
+    model_path = os.environ.get('MODEL_PATH', 'scoring_model.pt')
+    standard = os.environ.get('STANDARD')
+    obj = os.environ.get('OBJECT')
+    inference_id = os.environ.get('INFERENCE_ID')
     
-    # 获取用户输入
-    print("请输入评分标准和待评分对象:")
-    standard = input("评分标准 (standard): ")
-    obj = input("待评分对象 (obj): ")
+    # 如果没有环境变量，则从命令行获取输入
+    if not standard or not obj:
+        print("请输入评分标准和待评分对象:")
+        standard = input("评分标准 (standard): ")
+        obj = input("待评分对象 (obj): ")
+    
+    predictor = ScoringPredictor()
     
     # 进行预测
     try:

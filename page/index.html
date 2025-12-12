@@ -102,6 +102,66 @@
                     <div class="card-body">
                         <h5 class="card-title">Inference</h5>
                         <p class="card-text">Use the trained model to score new text samples.</p>
+                        
+                        <div class="mb-3">
+                            <label for="modelSelect" class="form-label">Select Model</label>
+                            <select class="form-select" id="modelSelect">
+                                <option value="">Choose a model...</option>
+                            </select>
+                        </div>
+                        
+                        <button class="btn btn-secondary mb-3" id="refreshModels">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh Models
+                        </button>
+                        
+                        <div class="mb-3">
+                            <label for="standardInput" class="form-label">Scoring Standard</label>
+                            <input type="text" class="form-control" id="standardInput" placeholder="Enter scoring standard">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label for="objectInput" class="form-label">Object to Score</label>
+                            <textarea class="form-control" id="objectInput" rows="3" placeholder="Enter text to score"></textarea>
+                        </div>
+                        
+                        <button class="btn btn-success" id="startInferenceBtn">Run Inference</button>
+                        
+                        <div class="mt-4">
+                            <h6>Inference Status</h6>
+                            <div id="inferenceStatus">
+                                <div class="alert alert-info">Select a model and enter text to score</div>
+                            </div>
+                            
+                            <h6 class="mt-4">Inference Output</h6>
+                            <div id="inferenceOutput" class="bg-dark text-light p-3 overflow-auto" style="height: 300px; display: none;">
+                                <pre id="inferenceLog" class="mb-0 text-light"></pre>
+                            </div>
+                            
+                            <div id="inferenceResults" class="mt-4" style="display: none;">
+                                <h6>Results</h6>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-body">
+                                                <h5 class="card-title">Final Score</h5>
+                                                <h2 id="finalScore" class="text-center">-</h2>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="card">
+                                            <div class="card-body">
+                                                <h5 class="card-title">Visualization</h5>
+                                                <div id="figureContainer">
+                                                    <img id="resultFigure" src="" alt="Scoring Visualization" class="img-fluid" style="display: none;">
+                                                    <div id="noFigureMessage" class="text-center text-muted">No visualization available</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -193,6 +253,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadDatasets();
             loadTrainingDatasets(); // Also load datasets for training tab
+            loadModels(); // Load models for inference tab
         });
         
         // Training tab functions
@@ -296,6 +357,170 @@
             })
             .catch(error => {
                 statusDiv.innerHTML = `<div class="alert alert-danger">Error starting training: ${error.message}</div>`;
+            });
+        });
+        
+        // Inference tab functions
+        function loadModels() {
+            const modelSelect = document.getElementById('modelSelect');
+            modelSelect.innerHTML = '<option value="">Choose a model...</option>';
+            
+            fetch('/api/models')
+            .then(response => response.json())
+            .then(models => {
+                models.forEach(model => {
+                    const option = document.createElement('option');
+                    option.value = model.name;
+                    option.textContent = model.name;
+                    modelSelect.appendChild(option);
+                });
+                
+                if (models.length === 0) {
+                    modelSelect.innerHTML = '<option value="">No models available</option>';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading models:', error);
+            });
+        }
+        
+        // Refresh models
+        document.getElementById('refreshModels').addEventListener('click', loadModels);
+        
+        // Start inference
+        let inferenceInterval = null;
+        document.getElementById('startInferenceBtn').addEventListener('click', function() {
+            const modelSelect = document.getElementById('modelSelect');
+            const standardInput = document.getElementById('standardInput');
+            const objectInput = document.getElementById('objectInput');
+            
+            const selectedModel = modelSelect.value;
+            const standard = standardInput.value.trim();
+            const obj = objectInput.value.trim();
+            
+            const statusDiv = document.getElementById('inferenceStatus');
+            const outputDiv = document.getElementById('inferenceOutput');
+            const logPre = document.getElementById('inferenceLog');
+            const resultsDiv = document.getElementById('inferenceResults');
+            const finalScoreEl = document.getElementById('finalScore');
+            const resultFigure = document.getElementById('resultFigure');
+            const noFigureMessage = document.getElementById('noFigureMessage');
+            
+            // Validation
+            if (!selectedModel) {
+                statusDiv.innerHTML = '<div class="alert alert-warning">Please select a model first.</div>';
+                return;
+            }
+            
+            if (!standard) {
+                statusDiv.innerHTML = '<div class="alert alert-warning">Please enter a scoring standard.</div>';
+                return;
+            }
+            
+            if (!obj) {
+                statusDiv.innerHTML = '<div class="alert alert-warning">Please enter text to score.</div>';
+                return;
+            }
+            
+            // Reset UI
+            statusDiv.innerHTML = '<div class="alert alert-info">Starting inference...</div>';
+            logPre.textContent = '';
+            outputDiv.style.display = 'block';
+            resultsDiv.style.display = 'none';
+            finalScoreEl.textContent = '-';
+            resultFigure.style.display = 'none';
+            noFigureMessage.style.display = 'block';
+            
+            // Send request to start inference
+            fetch('/api/start-inference', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ 
+                    model: selectedModel,
+                    standard: standard,
+                    obj: obj
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    statusDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                    return;
+                }
+                
+                statusDiv.innerHTML = `<div class="alert alert-info">Inference started with ID: ${data.inference_id}</div>`;
+                
+                // Poll for inference updates
+                if (inferenceInterval) {
+                    clearInterval(inferenceInterval);
+                }
+                
+                inferenceInterval = setInterval(() => {
+                    fetch(`/api/inference-status/${data.inference_id}`)
+                    .then(response => response.json())
+                    .then(statusData => {
+                        if (statusData.error) {
+                            statusDiv.innerHTML = `<div class="alert alert-danger">${statusData.error}</div>`;
+                            clearInterval(inferenceInterval);
+                            return;
+                        }
+                        
+                        // Update status
+                        statusDiv.innerHTML = `<div class="alert alert-info">Status: ${statusData.status}</div>`;
+                        
+                        // Update log
+                        if (statusData.output && statusData.output.length > 0) {
+                            logPre.textContent = statusData.output.join('');
+                            // Auto-scroll to bottom
+                            outputDiv.scrollTop = outputDiv.scrollHeight;
+                        }
+                        
+                        // Handle completion
+                        if (statusData.status === 'completed' || statusData.status === 'completed_with_errors') {
+                            clearInterval(inferenceInterval);
+                            
+                            if (statusData.status === 'completed') {
+                                statusDiv.innerHTML = '<div class="alert alert-success">Inference completed successfully</div>';
+                            } else {
+                                statusDiv.innerHTML = '<div class="alert alert-warning">Inference completed with errors in figure generation</div>';
+                            }
+                            
+                            // Try to parse the last line of output as JSON to get the final score
+                            try {
+                                const lastLine = statusData.output[statusData.output.length - 1];
+                                if (lastLine.includes('最终评分:') || lastLine.includes('Final Score:')) {
+                                    const match = lastLine.match(/(\d+\.\d+)/);
+                                    if (match) {
+                                        finalScoreEl.textContent = parseFloat(match[1]).toFixed(4);
+                                    }
+                                }
+                            } catch (e) {
+                                console.error('Could not parse final score from output');
+                            }
+                            
+                            // Show results section
+                            resultsDiv.style.display = 'block';
+                            
+                            // Display figure if available
+                            if (statusData.figure) {
+                                resultFigure.src = `/figures/${statusData.figure}`;
+                                resultFigure.style.display = 'block';
+                                noFigureMessage.style.display = 'none';
+                            }
+                        } else if (statusData.status === 'failed') {
+                            clearInterval(inferenceInterval);
+                            statusDiv.innerHTML = '<div class="alert alert-danger">Inference failed</div>';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching inference status:', error);
+                    });
+                }, 1000); // Poll every second
+            })
+            .catch(error => {
+                statusDiv.innerHTML = `<div class="alert alert-danger">Error starting inference: ${error.message}</div>`;
             });
         });
     </script>
