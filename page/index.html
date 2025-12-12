@@ -14,13 +14,13 @@
         <!-- Nav tabs -->
         <ul class="nav nav-tabs" id="myTab" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="data-tab" data-bs-toggle="tab" data-bs-target="#data" type="button" role="tab" aria-controls="data" aria-selected="true">Data Preparation</button>
+                <button class="nav-link active" id="data-tab" data-bs-toggle="tab" data-bs-target="#data" type="button" role="tab" aria-controls="data" aria-selected="true">① Data Preparation</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="training-tab" data-bs-toggle="tab" data-bs-target="#training" type="button" role="tab" aria-controls="training" aria-selected="false">Model Training</button>
+                <button class="nav-link" id="training-tab" data-bs-toggle="tab" data-bs-target="#training" type="button" role="tab" aria-controls="training" aria-selected="false">② Model Training</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="inference-tab" data-bs-toggle="tab" data-bs-target="#inference" type="button" role="tab" aria-controls="inference" aria-selected="false">Inference</button>
+                <button class="nav-link" id="inference-tab" data-bs-toggle="tab" data-bs-target="#inference" type="button" role="tab" aria-controls="inference" aria-selected="false">③ Inference</button>
             </li>
         </ul>
         
@@ -29,7 +29,7 @@
             <div class="tab-pane fade show active" id="data" role="tabpanel" aria-labelledby="data-tab">
                 <div class="card mt-4">
                     <div class="card-body">
-                        <h5 class="card-title">Data Preparation</h5>
+                        <h5 class="card-title">① Data Preparation</h5>
                         <p class="card-text">Upload your CSV dataset for training the StepScorer model.</p>
                         
                         <div class="alert alert-info" role="alert">
@@ -38,6 +38,13 @@
                                 <li><code>standard</code>: The scoring criteria</li>
                                 <li><code>object</code>: The text to be scored</li>
                                 <li><code>score</code>: The target score (numeric value)</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="alert alert-secondary" role="alert">
+                            <strong>File Path Information:</strong>
+                            <ul class="mb-0">
+                                <li>Uploaded datasets are stored in: <code>data/</code> directory</li>
                             </ul>
                         </div>
                         
@@ -68,8 +75,15 @@
             <div class="tab-pane fade" id="training" role="tabpanel" aria-labelledby="training-tab">
                 <div class="card mt-4">
                     <div class="card-body">
-                        <h5 class="card-title">Model Training</h5>
+                        <h5 class="card-title">② Model Training</h5>
                         <p class="card-text">Train the StepScorer model with your prepared data.</p>
+                        
+                        <div class="alert alert-secondary" role="alert">
+                            <strong>File Path Information:</strong>
+                            <ul class="mb-0">
+                                <li>Trained models are saved in: <code>checkpoints/</code> directory</li>
+                            </ul>
+                        </div>
                         
                         <div class="mb-3">
                             <label for="datasetSelect" class="form-label">Select Dataset</label>
@@ -100,8 +114,15 @@
             <div class="tab-pane fade" id="inference" role="tabpanel" aria-labelledby="inference-tab">
                 <div class="card mt-4">
                     <div class="card-body">
-                        <h5 class="card-title">Inference</h5>
+                        <h5 class="card-title">③ Inference</h5>
                         <p class="card-text">Use the trained model to score new text samples.</p>
+                        
+                        <div class="alert alert-secondary" role="alert">
+                            <strong>File Path Information:</strong>
+                            <ul class="mb-0">
+                                <li>Generated figures are saved in: <code>figures/</code> directory</li>
+                            </ul>
+                        </div>
                         
                         <div class="mb-3">
                             <label for="modelSelect" class="form-label">Select Model</label>
