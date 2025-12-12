@@ -19,6 +19,19 @@ Target for detection: **The sentence contains race-color related discriminatory 
 
 When the output value exceeds a certain threshold, the input is considered to contain racially discriminatory content.
 
+---
+
+## 🙉 Quick Demo
+
+We have prepared a web-based runtime tool to help users quickly experience StepScorer.
+
+```bash
+pip install -r requirements.txt
+python web.py
+```
+
+---
+
 ## 📁 Table of Contents
 - [Dataset Preparation](#dataset-preparation)
 - [Training](#training)
@@ -143,6 +156,8 @@ Main hyperparameters adjustable via the respective `CONFIG` dictionaries:
 - Batch size (default: `24`)
 
 For implementation details, please refer to [model.py](model.py).
+
+---
 
 ## 🤝 Legal Notice
 

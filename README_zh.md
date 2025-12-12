@@ -19,6 +19,19 @@ StepScorer 是一个为文本评分而设计的机器学习项目。该模型可
 
 当输出值高于一定阈值时，可以认为对象被检测为包含种族歧视性内容。
 
+---
+
+## 🙉 快速演示
+
+我们准备了一个网页版运行工具，可帮助用户快速体验StepScorer。
+
+```bash
+pip install -r requirements.txt
+python web.py
+```
+
+---
+
 ## 📁 目录
 - [数据集准备](#数据集准备)
 - [训练](#训练)
@@ -143,6 +156,7 @@ python figure.py
 
 有关详细实现，请参阅[model.py](model.py)。
 
+---
 
 ## 🤝 法律声明
 
