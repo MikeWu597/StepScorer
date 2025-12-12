@@ -225,6 +225,32 @@ def start_inference():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/generate-figure', methods=['POST'])
+def generate_figure_endpoint():
+    """根据scoring_steps.json生成图表"""
+    try:
+        # 检查scoring_steps.json是否存在
+        if not os.path.exists('scoring_steps.json'):
+            return jsonify({'error': 'scoring_steps.json not found'}), 404
+            
+        # 生成带时间戳的图表文件名
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        figure_filename = f"scoring_evolution_{timestamp}.png"
+        figure_path = os.path.join(app.config['FIGURES_FOLDER'], figure_filename)
+        
+        # 导入并调用figure.py中的函数
+        sys.path.append('.')  # 添加当前目录到Python路径
+        import figure
+        figure.generate_figure('scoring_steps.json', figure_path)
+        
+        return jsonify({
+            'message': 'Figure generated successfully',
+            'figure': figure_filename
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 def generate_figure_with_timestamp(inference_id):
     """根据推理结果生成带时间戳的图表"""
     # Read scoring_steps.json

@@ -487,13 +487,35 @@
                                 statusDiv.innerHTML = '<div class="alert alert-warning">Inference completed with errors in figure generation</div>';
                             }
                             
-                            // Try to parse the last line of output as JSON to get the final score
+                            // Try to parse output lines to find the final score
                             try {
-                                const lastLine = statusData.output[statusData.output.length - 1];
-                                if (lastLine.includes('最终评分:') || lastLine.includes('Final Score:')) {
-                                    const match = lastLine.match(/(\d+\.\d+)/);
-                                    if (match) {
-                                        finalScoreEl.textContent = parseFloat(match[1]).toFixed(4);
+                                let foundScore = false;
+                                // Check each line for the score information
+                                for (let i = 0; i < statusData.output.length; i++) {
+                                    const line = statusData.output[i];
+                                    if (line.includes('最终评分:') || line.includes('Final Score:')) {
+                                        const match = line.match(/(\d+\.\d+)/);
+                                        if (match) {
+                                            finalScoreEl.textContent = parseFloat(match[1]).toFixed(4);
+                                            foundScore = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                                
+                                // If not found in formatted lines, try to parse as JSON
+                                if (!foundScore) {
+                                    for (let i = 0; i < statusData.output.length; i++) {
+                                        try {
+                                            const parsed = JSON.parse(statusData.output[i]);
+                                            if (parsed.final_score !== undefined) {
+                                                finalScoreEl.textContent = parseFloat(parsed.final_score).toFixed(4);
+                                                foundScore = true;
+                                                break;
+                                            }
+                                        } catch (e) {
+                                            // Not a JSON line, continue
+                                        }
                                     }
                                 }
                             } catch (e) {
@@ -503,8 +525,24 @@
                             // Show results section
                             resultsDiv.style.display = 'block';
                             
-                            // Display figure if available
-                            if (statusData.figure) {
+                            // Generate figure if not already provided
+                            if (!statusData.figure) {
+                                fetch('/api/generate-figure', {
+                                    method: 'POST'
+                                })
+                                .then(response => response.json())
+                                .then(figureData => {
+                                    if (figureData.figure) {
+                                        resultFigure.src = `/figures/${figureData.figure}`;
+                                        resultFigure.style.display = 'block';
+                                        noFigureMessage.style.display = 'none';
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error generating figure:', error);
+                                });
+                            } else {
+                                // Display figure if available
                                 resultFigure.src = `/figures/${statusData.figure}`;
                                 resultFigure.style.display = 'block';
                                 noFigureMessage.style.display = 'none';
