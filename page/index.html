@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StepScorer</title>
+    <link rel="stylesheet" href="css/bootstrap.min.css">
+</head>
+<body>
+    <div class="container mt-5">
+        <h1 class="text-center mb-4">StepScorer</h1>
+        
+        <!-- Nav tabs -->
+        <ul class="nav nav-tabs" id="myTab" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="data-tab" data-bs-toggle="tab" data-bs-target="#data" type="button" role="tab" aria-controls="data" aria-selected="true">Data Preparation</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="training-tab" data-bs-toggle="tab" data-bs-target="#training" type="button" role="tab" aria-controls="training" aria-selected="false">Model Training</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="inference-tab" data-bs-toggle="tab" data-bs-target="#inference" type="button" role="tab" aria-controls="inference" aria-selected="false">Inference</button>
+            </li>
+        </ul>
+        
+        <!-- Tab panes -->
+        <div class="tab-content" id="myTabContent">
+            <div class="tab-pane fade show active" id="data" role="tabpanel" aria-labelledby="data-tab">
+                <div class="card mt-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Data Preparation</h5>
+                        <p class="card-text">Upload your CSV dataset for training the StepScorer model.</p>
+                        
+                        <div class="alert alert-info" role="alert">
+                            <strong>Dataset Format:</strong> The CSV file should contain three columns:
+                            <ul>
+                                <li><code>standard</code>: The scoring criteria</li>
+                                <li><code>object</code>: The text to be scored</li>
+                                <li><code>score</code>: The target score (numeric value)</li>
+                            </ul>
+                        </div>
+                        
+                        <form id="uploadForm" enctype="multipart/form-data">
+                            <div class="mb-3">
+                                <label for="datasetFile" class="form-label">Select CSV Dataset</label>
+                                <input class="form-control" type="file" id="datasetFile" name="file" accept=".csv">
+                            </div>
+                            <button type="submit" class="btn btn-primary" id="uploadBtn">Upload Dataset</button>
+                        </form>
+                        
+                        <div class="mt-3" id="uploadResult"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="training" role="tabpanel" aria-labelledby="training-tab">
+                <div class="card mt-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Model Training</h5>
+                        <p class="card-text">Train the StepScorer model with your prepared data.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="inference" role="tabpanel" aria-labelledby="inference-tab">
+                <div class="card mt-4">
+                    <div class="card-body">
+                        <h5 class="card-title">Inference</h5>
+                        <p class="card-text">Use the trained model to score new text samples.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('uploadForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('datasetFile');
+            const uploadBtn = document.getElementById('uploadBtn');
+            const resultDiv = document.getElementById('uploadResult');
+            
+            if (!fileInput.files.length) {
+                resultDiv.innerHTML = '<div class="alert alert-warning">Please select a file to upload.</div>';
+                return;
+            }
+            
+            const file = fileInput.files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            // Disable button during upload
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Uploading...';
+            
+            fetch('/api/upload-dataset', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    resultDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                } else {
+                    resultDiv.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+                }
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `<div class="alert alert-danger">Error: ${error.message}</div>`;
+            })
+            .finally(() => {
+                // Re-enable button
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload Dataset';
+            });
+        });
+    </script>
+</body>
+</html>
