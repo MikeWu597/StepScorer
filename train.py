@@ -8,6 +8,8 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from model import ScoringModel
 from dataset import ScoringDataset, collate_fn
+import os
+import time
 
 # 配置参数
 CONFIG = {
@@ -21,6 +23,10 @@ CONFIG = {
     'data_path': 'data/sample_data.csv',
     'model_save_path': 'scoring_model.pt'
 }
+
+# 如果环境变量中有指定的数据集，则使用该数据集
+if 'TRAINING_DATASET' in os.environ:
+    CONFIG['data_path'] = os.environ['TRAINING_DATASET']
 
 def generate_smooth_deltas(batch_size, max_steps, device):
     """
@@ -140,11 +146,21 @@ def train():
         # 学习率调整
         scheduler.step(val_loss)
         
-        # 保存最佳模型
+        # 保存最佳模型，带时间戳以避免覆盖
         if val_loss < best_val_loss:
             best_val_loss = val_loss
+            # 创建带时间戳的模型文件名
+            timestamp = int(time.time())
+            base_path, ext = os.path.splitext(CONFIG['model_save_path'])
+            timestamped_model_path = f"{base_path}_{timestamp}{ext}"
+            
+            # 保存模型
+            torch.save(model.state_dict(), timestamped_model_path)
+            print(f"Saved best model with val loss: {val_loss:.4f} to {timestamped_model_path}")
+            
+            # 同时保存一个最新的模型副本
             torch.save(model.state_dict(), CONFIG['model_save_path'])
-            print(f"Saved best model with val loss: {val_loss:.4f}")
+            print(f"Updated latest model copy to {CONFIG['model_save_path']}")
 
 if __name__ == "__main__":
     train()

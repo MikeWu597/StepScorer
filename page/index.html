@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>StepScorer</title>
     <link rel="stylesheet" href="css/bootstrap.min.css">
+    <link rel="stylesheet" href="font/bootstrap-icons.min.css">
 </head>
 <body>
     <div class="container mt-5">
@@ -49,6 +50,18 @@
                         </form>
                         
                         <div class="mt-3" id="uploadResult"></div>
+                        
+                        <div class="mt-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="mb-0">Uploaded Datasets</h6>
+                                <button class="btn btn-secondary btn-sm" id="refreshDatasets">
+                                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                                </button>
+                            </div>
+                            <div id="datasetsList">
+                                <div class="alert alert-info">Click "Refresh" to load datasets</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -57,6 +70,30 @@
                     <div class="card-body">
                         <h5 class="card-title">Model Training</h5>
                         <p class="card-text">Train the StepScorer model with your prepared data.</p>
+                        
+                        <div class="mb-3">
+                            <label for="datasetSelect" class="form-label">Select Dataset</label>
+                            <select class="form-select" id="datasetSelect">
+                                <option value="">Choose a dataset...</option>
+                            </select>
+                        </div>
+                        
+                        <button class="btn btn-success" id="startTrainingBtn">Start Training</button>
+                        <button class="btn btn-secondary" id="refreshTrainingDatasets">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh Datasets
+                        </button>
+                        
+                        <div class="mt-4">
+                            <h6>Training Status</h6>
+                            <div id="trainingStatus">
+                                <div class="alert alert-info">Select a dataset and click "Start Training"</div>
+                            </div>
+                            
+                            <h6 class="mt-4">Training Output</h6>
+                            <div id="trainingOutput" class="bg-dark text-light p-3 overflow-auto" style="height: 300px; display: none;">
+                                <pre id="trainingLog" class="mb-0 text-light"></pre>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -73,6 +110,7 @@
 
     <script src="js/bootstrap.bundle.min.js"></script>
     <script>
+        // Data preparation tab functions
         document.getElementById('uploadForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
@@ -112,6 +150,152 @@
                 // Re-enable button
                 uploadBtn.disabled = false;
                 uploadBtn.textContent = 'Upload Dataset';
+            });
+        });
+        
+        // Function to fetch and display datasets
+        function loadDatasets() {
+            const datasetsList = document.getElementById('datasetsList');
+            datasetsList.innerHTML = '<div class="alert alert-info">Loading datasets...</div>';
+            
+            fetch('/api/datasets')
+            .then(response => response.json())
+            .then(datasets => {
+                if (datasets.length === 0) {
+                    datasetsList.innerHTML = '<div class="alert alert-warning">No datasets uploaded yet.</div>';
+                    return;
+                }
+                
+                let listHtml = '<ul class="list-group">';
+                datasets.forEach(dataset => {
+                    const date = new Date(dataset.modified * 1000);
+                    const dateString = date.toLocaleString();
+                    const sizeInKB = (dataset.size / 1024).toFixed(2);
+                    listHtml += `
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span>${dataset.name}</span>
+                            <small class="text-muted">${sizeInKB} KB | ${dateString}</small>
+                        </li>
+                    `;
+                });
+                listHtml += '</ul>';
+                datasetsList.innerHTML = listHtml;
+            })
+            .catch(error => {
+                datasetsList.innerHTML = `<div class="alert alert-danger">Error loading datasets: ${error.message}</div>`;
+            });
+        }
+        
+        // Load datasets when refresh button is clicked
+        document.getElementById('refreshDatasets').addEventListener('click', loadDatasets);
+        
+        // Load datasets on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDatasets();
+            loadTrainingDatasets(); // Also load datasets for training tab
+        });
+        
+        // Training tab functions
+        function loadTrainingDatasets() {
+            const datasetSelect = document.getElementById('datasetSelect');
+            
+            // Clear current options except the first one
+            datasetSelect.innerHTML = '<option value="">Choose a dataset...</option>';
+            
+            fetch('/api/datasets')
+            .then(response => response.json())
+            .then(datasets => {
+                datasets.forEach(dataset => {
+                    const option = document.createElement('option');
+                    option.value = dataset.name;
+                    option.textContent = dataset.name;
+                    datasetSelect.appendChild(option);
+                });
+            })
+            .catch(error => {
+                console.error('Error loading training datasets:', error);
+            });
+        }
+        
+        // Refresh datasets for training
+        document.getElementById('refreshTrainingDatasets').addEventListener('click', loadTrainingDatasets);
+        
+        // Start training
+        let trainingInterval = null;
+        document.getElementById('startTrainingBtn').addEventListener('click', function() {
+            const datasetSelect = document.getElementById('datasetSelect');
+            const selectedDataset = datasetSelect.value;
+            const statusDiv = document.getElementById('trainingStatus');
+            const outputDiv = document.getElementById('trainingOutput');
+            const logPre = document.getElementById('trainingLog');
+            
+            if (!selectedDataset) {
+                statusDiv.innerHTML = '<div class="alert alert-warning">Please select a dataset first.</div>';
+                return;
+            }
+            
+            // Reset UI
+            statusDiv.innerHTML = '<div class="alert alert-info">Starting training...</div>';
+            logPre.textContent = '';
+            outputDiv.style.display = 'block';
+            
+            // Send request to start training
+            fetch('/api/start-training', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ dataset: selectedDataset })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    statusDiv.innerHTML = `<div class="alert alert-danger">${data.error}</div>`;
+                    return;
+                }
+                
+                statusDiv.innerHTML = `<div class="alert alert-info">Training started with ID: ${data.training_id}</div>`;
+                
+                // Poll for training updates
+                if (trainingInterval) {
+                    clearInterval(trainingInterval);
+                }
+                
+                trainingInterval = setInterval(() => {
+                    fetch(`/api/training-status/${data.training_id}`)
+                    .then(response => response.json())
+                    .then(statusData => {
+                        if (statusData.error) {
+                            statusDiv.innerHTML = `<div class="alert alert-danger">${statusData.error}</div>`;
+                            clearInterval(trainingInterval);
+                            return;
+                        }
+                        
+                        // Update status
+                        statusDiv.innerHTML = `<div class="alert alert-info">Status: ${statusData.status}</div>`;
+                        
+                        // Update log
+                        if (statusData.output && statusData.output.length > 0) {
+                            logPre.textContent = statusData.output.join('');
+                            // Auto-scroll to bottom
+                            outputDiv.scrollTop = outputDiv.scrollHeight;
+                        }
+                        
+                        // Stop polling if training is completed or failed
+                        if (statusData.status === 'completed' || statusData.status === 'failed') {
+                            clearInterval(trainingInterval);
+                            statusDiv.innerHTML = `<div class="alert alert-${statusData.status === 'completed' ? 'success' : 'danger'}">
+                                Training ${statusData.status}
+                            </div>`;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error fetching training status:', error);
+                    });
+                }, 1000); // Poll every second
+            })
+            .catch(error => {
+                statusDiv.innerHTML = `<div class="alert alert-danger">Error starting training: ${error.message}</div>`;
             });
         });
     </script>
